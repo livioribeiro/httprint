@@ -1,0 +1,14 @@
+[package]
+name = "httprint"
+description = "Logs HTTP requests to the console for debugging"
+version = "0.1.0"
+edition = "2021"
+authors = [
+    "Livio Ribeiro <livioribeiro@outlook.com>"
+]
+license = "The Unlicense"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tiny_http = "0.12.0"
