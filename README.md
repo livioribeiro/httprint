@@ -2,6 +2,12 @@
 
 Listen to HTTP requests and prints to the console information about the request.
 
+## Installation
+
+```shell
+cargo install httprint
+```
+
 ## Usage
 
 ```shell

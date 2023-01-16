@@ -1,4 +1,3 @@
-use std::io::{stdout, Write};
 use tiny_http::{Request, Response, Server};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -7,14 +6,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         [_program] => "127.0.0.1:8000",
         [_program, bind] if bind != "--help" => bind,
         [program, ..] => {
-            print_help(&program);
+            print_usage(program);
             return Ok(());
         }
         [] => unreachable!(),
     };
 
     let server = Server::http(bind).unwrap();
-    println!("Listening at {}\n", server.server_addr().to_string());
+    println!("Listening at {}\n", server.server_addr());
 
     for request in server.incoming_requests() {
         if let Err(err) = handle_request(request) {
@@ -25,26 +24,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn print_help(program: &str) {
-    let program = program.split("/").last().unwrap_or("httprint");
+fn print_usage(program: &str) {
+    let program = program.split('/').last().unwrap_or("httprint");
     println!("Usage: {program} [ADDRESS]\n");
     println!("Parameters:\n  ADDRESS\tAddress to listen (default: 127.0.0.1:8000)")
 }
 
 fn handle_request(mut request: Request) -> Result<(), Box<dyn std::error::Error>> {
-    let mut stdout = stdout().lock();
+    let mut buf = String::new();
+    buf.push_str(get_request_line(&request).as_ref());
 
-    let request_line = get_request_line(&request);
-    writeln!(stdout, "{request_line}")?;
+    let output = {
+        let request_line = get_request_line(&request);
+        let headers = get_headers(&request);
 
-    let headers = get_headers(&request);
-    writeln!(stdout, "{headers}")?;
+        if let Some(body) = get_body(&mut request)? {
+            format!("{request_line}\n{headers}\n\n{body}\n\n---\n")
+        } else {
+            format!("{request_line}\n{headers}\n\n---\n")
+        }
+    };
 
-    if let Some(body) = get_body(&mut request)? {
-        writeln!(stdout, "\n{body}")?;
-    }
-
-    writeln!(stdout, "\n---\n")?;
+    println!("{output}");
 
     let response = Response::new_empty(200.into());
     request.respond(response)?;
@@ -63,7 +64,7 @@ fn get_request_line(request: &Request) -> String {
 fn get_headers(request: &Request) -> String {
     request
         .headers()
-        .into_iter()
+        .iter()
         .map(|header| {
             let field = header.field.to_string();
             let value = header.value.to_string();
@@ -80,18 +81,11 @@ fn get_body(request: &mut Request) -> Result<Option<String>, std::io::Error> {
         return Ok(None);
     }
 
-    let content_type: String = request
+    let content_type = request
         .headers()
         .iter()
-        .filter_map(|h| {
-            if h.field.to_string().to_lowercase() == "content-type" {
-                Some(h.value.to_string())
-            } else {
-                None
-            }
-        })
-        .next()
-        .unwrap_or("text/plain".to_owned());
+        .find(|h| h.field.equiv("Content-Type"))
+        .map_or("text/plain".to_owned(), |h| h.value.to_string());
 
     if content_type.contains("application/octet-stream") {
         return Ok(Some("[binary data]".to_owned()));
